@@ -1,4 +1,9 @@
-import { CANVAS_W, CANVAS_H, BALL_RADIUS, NAIL_RADIUS, HOLE_RADIUS } from './constants';
+import {
+  CANVAS_W, CANVAS_H, BALL_RADIUS, NAIL_RADIUS, HOLE_RADIUS,
+  DEFLECTOR_CENTER_X, DEFLECTOR_CENTER_Y, DEFLECTOR_RADIUS,
+  DEFLECTOR_ANGLE_START, DEFLECTOR_ANGLE_END,
+  LANE_WALL_X, LANE_WALL_Y_TOP,
+} from './constants';
 import type { PhysicsWorld } from './physics';
 import type { Board } from './board';
 import { holePosition } from './board';
@@ -38,23 +43,35 @@ export function drawFrame(
 }
 
 function drawLane(ctx: CanvasRenderingContext2D): void {
-  // Upper curved lane background
   ctx.save();
+
+  // Upper area background
   ctx.fillStyle = COLORS.lane;
-  ctx.strokeStyle = COLORS.laneBorder;
-  ctx.lineWidth = 2;
+  ctx.fillRect(0, 0, CANVAS_W, 165);
 
-  ctx.beginPath();
-  ctx.rect(0, 0, CANVAS_W, 165);
-  ctx.fill();
-  ctx.strokeRect(0, 0, CANVAS_W, 165);
-
-  // Launch chute on the right side
+  // Launch lane / chute on the right side (where the ball rises before the
+  // deflector turns it left).
+  const chuteW = CANVAS_W - LANE_WALL_X;
   ctx.fillStyle = COLORS.woodDark;
-  ctx.fillRect(CANVAS_W - 28, 0, 28, CANVAS_H);
+  ctx.fillRect(LANE_WALL_X, LANE_WALL_Y_TOP, chuteW, CANVAS_H - LANE_WALL_Y_TOP);
+  ctx.fillRect(LANE_WALL_X, 0, chuteW, LANE_WALL_Y_TOP);
   ctx.strokeStyle = COLORS.wood;
   ctx.lineWidth = 2;
-  ctx.strokeRect(CANVAS_W - 28, 0, 28, CANVAS_H);
+  ctx.strokeRect(LANE_WALL_X, 0, chuteW, CANVAS_H);
+
+  // Top-right deflector curve (the curve the ball follows) — drawn last so it
+  // reads as a continuous rail over the lane.
+  ctx.beginPath();
+  ctx.arc(DEFLECTOR_CENTER_X, DEFLECTOR_CENTER_Y, DEFLECTOR_RADIUS,
+    DEFLECTOR_ANGLE_START, DEFLECTOR_ANGLE_END);
+  ctx.strokeStyle = COLORS.wood;
+  ctx.lineWidth = 10;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  // Inner highlight line
+  ctx.strokeStyle = COLORS.laneBorder;
+  ctx.lineWidth = 2;
+  ctx.stroke();
 
   ctx.restore();
 }

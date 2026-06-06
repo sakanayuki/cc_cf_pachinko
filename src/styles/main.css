@@ -236,7 +236,7 @@ html, body {
 .launcher-area {
   position: relative;
   width: 80px;
-  height: 80px;
+  height: 140px;
   flex-shrink: 0;
 }
 
@@ -253,7 +253,7 @@ html, body {
 
 .launcher-btn {
   position: absolute;
-  bottom: 0;
+  top: 0;
   left: 50%;
   transform: translateX(-50%);
   width: 56px;
