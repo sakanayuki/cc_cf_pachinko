@@ -37,24 +37,44 @@ export function drawFrame(
   drawBalls(ctx, world);
 }
 
+const CORNER_R = 40;
+const CHUTE_X = CANVAS_W - 28;
+const LANE_H = 165;
+
 function drawLane(ctx: CanvasRenderingContext2D): void {
-  // Upper curved lane background
   ctx.save();
+
+  // Lane background with smooth top-left and top-right curves
   ctx.fillStyle = COLORS.lane;
   ctx.strokeStyle = COLORS.laneBorder;
   ctx.lineWidth = 2;
 
   ctx.beginPath();
-  ctx.rect(0, 0, CANVAS_W, 165);
+  ctx.moveTo(0, LANE_H);                                              // bottom-left
+  ctx.lineTo(0, CORNER_R);                                            // up left side
+  ctx.arc(CORNER_R, CORNER_R, CORNER_R, Math.PI, -Math.PI / 2, false); // top-left curve
+  ctx.lineTo(CHUTE_X - CORNER_R, 0);                                  // across top
+  ctx.arc(CHUTE_X - CORNER_R, CORNER_R, CORNER_R, -Math.PI / 2, 0, false); // top-right curve
+  ctx.lineTo(CHUTE_X, LANE_H);                                        // down right side
+  ctx.closePath();
   ctx.fill();
-  ctx.strokeRect(0, 0, CANVAS_W, 165);
+  ctx.stroke();
+
+  // Corner guide bumpers — same wood colour as walls
+  ctx.fillStyle = COLORS.woodDark;
+  ctx.beginPath();
+  ctx.arc(CORNER_R, CORNER_R, CORNER_R, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(CHUTE_X - CORNER_R, CORNER_R, CORNER_R, 0, Math.PI * 2);
+  ctx.fill();
 
   // Launch chute on the right side
   ctx.fillStyle = COLORS.woodDark;
-  ctx.fillRect(CANVAS_W - 28, 0, 28, CANVAS_H);
+  ctx.fillRect(CHUTE_X, 0, 28, CANVAS_H);
   ctx.strokeStyle = COLORS.wood;
   ctx.lineWidth = 2;
-  ctx.strokeRect(CANVAS_W - 28, 0, 28, CANVAS_H);
+  ctx.strokeRect(CHUTE_X, 0, 28, CANVAS_H);
 
   ctx.restore();
 }
