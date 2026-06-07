@@ -5,11 +5,14 @@ export const GRID_SIZE = 4;
 export const CANVAS_W = 390;
 export const CANVAS_H = 600;
 
-// Board layout (4x4 holes in the center of the canvas)
-export const HOLE_RADIUS = 18;
+// Board layout (4x4 holes). Holes are larger and staggered (brick pattern) so
+// balls cascade Galton-board style and reach every row easily (low difficulty).
+export const HOLE_RADIUS = 22;
 export const HOLE_GRID_ORIGIN_X = CANVAS_W / 2 - (GRID_SIZE * 70) / 2 + 35; // center of first col
-export const HOLE_GRID_ORIGIN_Y = 200;
-export const HOLE_SPACING = 70;
+export const HOLE_GRID_ORIGIN_Y = 210;
+export const HOLE_SPACING = 70;        // column spacing (x)
+export const HOLE_ROW_SPACING = 72;    // row spacing (y)
+export const HOLE_STAGGER_X = -35;     // odd rows shifted by this (brick pattern)
 
 // Nails
 export const NAIL_RADIUS = 5;

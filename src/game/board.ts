@@ -1,4 +1,4 @@
-import { GRID_SIZE, HOLE_GRID_ORIGIN_X, HOLE_GRID_ORIGIN_Y, HOLE_SPACING } from './constants';
+import { GRID_SIZE, HOLE_GRID_ORIGIN_X, HOLE_GRID_ORIGIN_Y, HOLE_SPACING, HOLE_ROW_SPACING, HOLE_STAGGER_X } from './constants';
 
 export type Board = boolean[][];
 
@@ -30,7 +30,7 @@ export function getScoreMessage(lines: number): string {
 
 export function holePosition(row: number, col: number): { x: number; y: number } {
   return {
-    x: HOLE_GRID_ORIGIN_X + col * HOLE_SPACING,
-    y: HOLE_GRID_ORIGIN_Y + row * HOLE_SPACING,
+    x: HOLE_GRID_ORIGIN_X + col * HOLE_SPACING + (row % 2 ? HOLE_STAGGER_X : 0),
+    y: HOLE_GRID_ORIGIN_Y + row * HOLE_ROW_SPACING,
   };
 }

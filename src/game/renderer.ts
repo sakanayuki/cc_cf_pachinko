@@ -37,9 +37,36 @@ export function drawFrame(
 
   drawLane(ctx);
   drawBoardArea(ctx);
+  drawDecorativeNails(ctx);
   drawHoles(ctx, board);
   drawNails(ctx, world);
   drawBalls(ctx, world);
+}
+
+// Cosmetic nails in the upper launch area (which a ball never reaches, since it
+// deflects off the top rail at ~y210). Purely visual: makes the whole board
+// up to the header read as an active pachinko field, with zero gameplay effect.
+function drawDecorativeNails(ctx: CanvasRenderingContext2D): void {
+  ctx.save();
+  const rows: [number, number[]][] = [
+    [60, [0.12, 0.30, 0.48, 0.66, 0.84]],
+    [95, [0.21, 0.39, 0.57, 0.75]],
+    [130, [0.12, 0.30, 0.48, 0.66, 0.84]],
+  ];
+  for (const [y, xs] of rows) {
+    for (const xr of xs) {
+      const x = xr * CANVAS_W;
+      if (x > 330) continue; // keep clear of the launch chute
+      ctx.beginPath();
+      ctx.arc(x, y, NAIL_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.nail;
+      ctx.fill();
+      ctx.strokeStyle = '#C8A44A';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
 }
 
 function drawLane(ctx: CanvasRenderingContext2D): void {
@@ -196,7 +223,9 @@ export function resizeCanvas(canvas: HTMLCanvasElement): void {
   canvas.style.height = `${dispH}px`;
   canvas.style.position = 'absolute';
   canvas.style.left = `${(wrapW - dispW) / 2}px`;
-  canvas.style.top = `${(wrapH - dispH) / 2}px`;
+  // Anchor to the top so the playfield starts right under the header instead of
+  // leaving a wasteful empty band above it.
+  canvas.style.top = '0px';
 
   // Set actual pixel resolution (devicePixelRatio aware)
   const dpr = window.devicePixelRatio || 1;

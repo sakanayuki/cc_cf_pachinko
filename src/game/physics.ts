@@ -24,6 +24,7 @@ export interface HoleSensor {
   body: Matter.Body;
   row: number;
   col: number;
+  filled: boolean;
 }
 
 export interface PhysicsWorld {
@@ -48,27 +49,15 @@ function makeNail(x: number, y: number): Matter.Body {
 function buildNails(): Matter.Body[] {
   const nails: Matter.Body[] = [];
 
-  // Guide nails ("inochi-kugi") flanking each hole: two nails just above the
-  // opening of every hole so balls funnel in. Spaced ±19px (gap 38 > ball
-  // diameter 28) so a ball cannot rest bridged across them.
-  const holeCenters: { x: number; y: number }[] = [];
-  for (let r = 0; r < GRID_SIZE; r++) {
-    for (let c = 0; c < GRID_SIZE; c++) {
-      const h = holePosition(r, c);
-      holeCenters.push(h);
-      nails.push(makeNail(h.x - 19, h.y - 21));
-      nails.push(makeNail(h.x + 19, h.y - 21));
-    }
-  }
-
-  // Scatter nails above and to the left of the grid to vary bounces. Nothing is
-  // placed below the bottom hole row (it would serve no purpose there).
+  // Holes are large and staggered, so the field is intentionally sparse: a
+  // couple of guide rows feed balls into the staggered cascade. A denser field
+  // here actually blocks the cascade and stops balls reaching the lower rows.
   const scatterPositions: [number, number][] = [
-    // above grid
-    [0.12, 170], [0.30, 170], [0.48, 170], [0.66, 170], [0.84, 170],
-    [0.20, 192], [0.38, 192], [0.56, 192], [0.74, 192],
-    // left side between hole rows
-    [0.06, 235], [0.06, 305], [0.06, 375],
+    // entry row just above the top holes – spreads incoming balls across columns
+    [0.12, 180], [0.30, 180], [0.48, 180], [0.66, 180], [0.84, 180],
+    [0.20, 202], [0.38, 202], [0.56, 202], [0.74, 202],
+    // left-edge guides that nudge edge balls back toward the holes
+    [0.06, 260], [0.06, 340],
   ];
   scatterPositions.forEach(([xR, y]) => {
     nails.push(makeNail(xR * CANVAS_W, y));
@@ -76,8 +65,13 @@ function buildNails(): Matter.Body[] {
 
   // Drop any nail that overlaps a hole, or that sits inside the launch lane
   // (where it would block the rising ball).
+  const holeCenters: { x: number; y: number }[] = [];
+  for (let r = 0; r < GRID_SIZE; r++) {
+    for (let c = 0; c < GRID_SIZE; c++) holeCenters.push(holePosition(r, c));
+  }
   const margin = HOLE_RADIUS + NAIL_RADIUS + 2;
   return nails.filter(n =>
+    n.position.x > 18 &&
     n.position.x < LANE_WALL_X - NAIL_RADIUS - 8 &&
     holeCenters.every(h => Math.hypot(n.position.x - h.x, n.position.y - h.y) >= margin)
   );
@@ -151,7 +145,7 @@ export function createPhysicsWorld(
         label: `hole_${r}_${c}`,
         render: { fillStyle: 'transparent' },
       });
-      holeSensors.push({ body, row: r, col: c });
+      holeSensors.push({ body, row: r, col: c, filled: false });
     }
   }
 
@@ -182,6 +176,13 @@ export function createPhysicsWorld(
           const parts = other.label.split('_');
           const row = parseInt(parts[1], 10);
           const col = parseInt(parts[2], 10);
+          const sensor = world.holeSensors.find(h => h.row === row && h.col === col);
+          // Already-filled hole: do nothing. The ball that previously settled
+          // here remains as a static "bumper", so this ball bounces off it and
+          // keeps flying toward another hole (no freeze).
+          if (!sensor || sensor.filled) continue;
+
+          sensor.filled = true;
           ball.state = 'settled';
           ball.settledRow = row;
           ball.settledCol = col;
