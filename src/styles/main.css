@@ -5,7 +5,7 @@
 }
 
 :root {
-  --color-bg: #1B2A4A;
+  --color-bg: #C8A460;
   --color-wood-light: #A9743B;
   --color-wood-dark: #7A4A1E;
   --color-red: #E23B2E;
@@ -57,7 +57,7 @@ html, body {
 #screen-top {
   background:
     radial-gradient(ellipse at 50% 0%, #2a1a0e 0%, transparent 70%),
-    linear-gradient(180deg, #1B2A4A 0%, #0d1a2e 100%);
+    linear-gradient(180deg, #C8A460 0%, #8B6A2A 100%);
   padding: 20px;
   padding-bottom: calc(20px + env(safe-area-inset-bottom));
 }
@@ -304,7 +304,7 @@ html, body {
 #screen-result {
   background:
     radial-gradient(ellipse at 50% 0%, #2a1a0e 0%, transparent 60%),
-    linear-gradient(180deg, #1B2A4A 0%, #0d1a2e 100%);
+    linear-gradient(180deg, #C8A460 0%, #8B6A2A 100%);
   padding: 24px 20px;
   padding-bottom: calc(24px + env(safe-area-inset-bottom));
 }

@@ -9,8 +9,8 @@ import type { Board } from './board';
 import { holePosition } from './board';
 
 const COLORS = {
-  bg: '#2a1a3e',
-  boardBg: '#1e3a5f',
+  bg: '#C8A460',
+  boardBg: '#A07C38',
   wood: '#A9743B',
   woodDark: '#7A4A1E',
   nail: '#8B6914',
@@ -18,7 +18,7 @@ const COLORS = {
   holeBorder: 'rgba(255,255,255,0.15)',
   ball: '#FFFFFF',
   ballShadow: 'rgba(0,0,0,0.35)',
-  lane: '#2e4a6e',
+  lane: '#B89040',
   laneBorder: '#A9743B',
   yellow: '#F6C445',
   red: '#E23B2E',
@@ -76,6 +76,18 @@ function drawLane(ctx: CanvasRenderingContext2D): void {
   ctx.fillStyle = COLORS.lane;
   ctx.fillRect(0, 0, CANVAS_W, 165);
 
+  // Wood grain on upper area
+  for (let i = 0; i < 12; i++) {
+    const gy = i * 14;
+    const wave = ((i * 11) % 5) - 2;
+    ctx.strokeStyle = i % 2 === 0 ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.04)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, gy);
+    ctx.lineTo(CANVAS_W, gy + wave);
+    ctx.stroke();
+  }
+
   // Launch lane / chute on the right side (where the ball rises before the
   // deflector turns it left).
   const chuteW = CANVAS_W - LANE_WALL_X;
@@ -113,6 +125,27 @@ function drawBoardArea(ctx: CanvasRenderingContext2D): void {
   const bx = 20, by = 165, bw = CANVAS_W - 48, bh = CANVAS_H - 165 - 20;
   roundRect(ctx, bx, by, bw, bh, 8);
   ctx.fill();
+
+  // Wood grain lines (deterministic, no random)
+  ctx.save();
+  ctx.beginPath();
+  roundRect(ctx, bx, by, bw, bh, 8);
+  ctx.clip();
+  for (let i = 0; i < 22; i++) {
+    const gy = by + (i / 22) * bh;
+    const wave = ((i * 7) % 5) - 2;
+    ctx.strokeStyle = i % 2 === 0 ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(bx, gy);
+    ctx.lineTo(bx + bw, gy + wave);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.strokeStyle = COLORS.wood;
+  ctx.lineWidth = 4;
+  roundRect(ctx, bx, by, bw, bh, 8);
   ctx.stroke();
   ctx.restore();
 }
