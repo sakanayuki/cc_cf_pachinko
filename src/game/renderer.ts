@@ -9,8 +9,6 @@ import type { Board } from './board';
 import { holePosition } from './board';
 
 const COLORS = {
-  bg: '#C8A460',
-  boardBg: '#A07C38',
   wood: '#A9743B',
   woodDark: '#7A4A1E',
   nail: '#8B6914',
@@ -31,12 +29,7 @@ export function drawFrame(
 ): void {
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
-  // Background
-  ctx.fillStyle = COLORS.bg;
-  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-
   drawLane(ctx);
-  drawBoardArea(ctx);
   drawDecorativeNails(ctx);
   drawHoles(ctx, board);
   drawNails(ctx, world);
@@ -72,14 +65,15 @@ function drawDecorativeNails(ctx: CanvasRenderingContext2D): void {
 function drawLane(ctx: CanvasRenderingContext2D): void {
   ctx.save();
 
-  // Upper area background
+  // Unified wood background – fills the entire canvas so upper and lower
+  // areas share the same look with no separate frame.
   ctx.fillStyle = COLORS.lane;
-  ctx.fillRect(0, 0, CANVAS_W, 165);
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-  // Wood grain on upper area
-  for (let i = 0; i < 12; i++) {
-    const gy = i * 14;
-    const wave = ((i * 11) % 5) - 2;
+  // Wood grain across the full canvas (deterministic)
+  for (let i = 0; i < 44; i++) {
+    const gy = (i / 44) * CANVAS_H;
+    const wave = ((i * 7) % 5) - 2;
     ctx.strokeStyle = i % 2 === 0 ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.04)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -112,41 +106,6 @@ function drawLane(ctx: CanvasRenderingContext2D): void {
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  ctx.restore();
-}
-
-function drawBoardArea(ctx: CanvasRenderingContext2D): void {
-  ctx.save();
-  // Main board background
-  ctx.fillStyle = COLORS.boardBg;
-  ctx.strokeStyle = COLORS.wood;
-  ctx.lineWidth = 4;
-
-  const bx = 20, by = 165, bw = LANE_WALL_X - bx - 5, bh = CANVAS_H - 165 - 20;
-  roundRect(ctx, bx, by, bw, bh, 8);
-  ctx.fill();
-
-  // Wood grain lines (deterministic, no random)
-  ctx.save();
-  ctx.beginPath();
-  roundRect(ctx, bx, by, bw, bh, 8);
-  ctx.clip();
-  for (let i = 0; i < 22; i++) {
-    const gy = by + (i / 22) * bh;
-    const wave = ((i * 7) % 5) - 2;
-    ctx.strokeStyle = i % 2 === 0 ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.05)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(bx, gy);
-    ctx.lineTo(bx + bw, gy + wave);
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  ctx.strokeStyle = COLORS.wood;
-  ctx.lineWidth = 4;
-  roundRect(ctx, bx, by, bw, bh, 8);
-  ctx.stroke();
   ctx.restore();
 }
 
@@ -225,23 +184,6 @@ function drawBalls(ctx: CanvasRenderingContext2D, world: PhysicsWorld): void {
     ctx.fill();
   }
   ctx.restore();
-}
-
-function roundRect(
-  ctx: CanvasRenderingContext2D,
-  x: number, y: number, w: number, h: number, r: number
-): void {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
 }
 
 export function resizeCanvas(canvas: HTMLCanvasElement): void {

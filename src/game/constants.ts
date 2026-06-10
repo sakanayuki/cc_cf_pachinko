@@ -7,8 +7,8 @@ export const CANVAS_H = 600;
 
 // Board layout (4x4 holes). Uniform square grid – all rows aligned.
 export const HOLE_RADIUS = 22;
-export const HOLE_GRID_ORIGIN_X = CANVAS_W / 2 - (GRID_SIZE * 70) / 2 + 35; // center of first col
-export const HOLE_GRID_ORIGIN_Y = 210;
+export const HOLE_GRID_ORIGIN_X = 75; // first column center; shifted left to keep rightmost hole clear of lane
+export const HOLE_GRID_ORIGIN_Y = 240; // moved down to give gap from bottom nail row
 export const HOLE_SPACING = 70;        // column spacing (x)
 export const HOLE_ROW_SPACING = 72;    // row spacing (y)
 export const HOLE_STAGGER_X = 0;       // no stagger – uniform square grid
@@ -30,15 +30,15 @@ export const MAX_LAUNCH_SPEED = 48;
 export const LAUNCH_START_X = 368; // inside the right launch lane
 export const LAUNCH_START_Y = CANVAS_H - 80;
 
-// Top-right corner deflector: convex arc – center is outside the canvas (upper-right),
-// so the arc surface bulges toward the playfield. Ball rises up the lane, hits the
-// convex surface, and is deflected left into the playfield from the upper-right corner.
-export const DEFLECTOR_CENTER_X = 440;
-export const DEFLECTOR_CENTER_Y = -20;
-export const DEFLECTOR_RADIUS = 95;
-export const DEFLECTOR_SEGMENTS = 10;
-export const DEFLECTOR_ANGLE_START = 120 * Math.PI / 180; // right end  ≈ (392, 62)
-export const DEFLECTOR_ANGLE_END   = 160 * Math.PI / 180; // left-top end ≈ (351, 13)
+// Top-right corner deflector: concave arc – center is inside the canvas (lower-left of arc),
+// so the arc's hollow/bowl side faces the playfield. Ball rises up the lane, passes through
+// the circle's lower crossing, and hits the concave upper arc, deflecting left.
+export const DEFLECTOR_CENTER_X = 310;
+export const DEFLECTOR_CENTER_Y = 130;
+export const DEFLECTOR_RADIUS = 110;
+export const DEFLECTOR_SEGMENTS = 8;
+export const DEFLECTOR_ANGLE_START = -70 * Math.PI / 180; // left end  ≈ (348, 27)
+export const DEFLECTOR_ANGLE_END   = -45 * Math.PI / 180; // right end ≈ (388, 52)
 export const DEFLECTOR_RESTITUTION = 0.45;
 
 // Launch-lane separator wall (right side). Its top sits BELOW the deflection
