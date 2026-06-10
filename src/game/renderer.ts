@@ -122,7 +122,7 @@ function drawBoardArea(ctx: CanvasRenderingContext2D): void {
   ctx.strokeStyle = COLORS.wood;
   ctx.lineWidth = 4;
 
-  const bx = 20, by = 165, bw = CANVAS_W - 48, bh = CANVAS_H - 165 - 20;
+  const bx = 20, by = 165, bw = LANE_WALL_X - bx - 5, bh = CANVAS_H - 165 - 20;
   roundRect(ctx, bx, by, bw, bh, 8);
   ctx.fill();
 

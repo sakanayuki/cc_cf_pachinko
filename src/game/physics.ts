@@ -56,8 +56,6 @@ function buildNails(): Matter.Body[] {
     // entry row just above the top holes – spreads incoming balls across columns
     [0.12, 180], [0.30, 180], [0.48, 180], [0.66, 180], [0.84, 180],
     [0.20, 202], [0.38, 202], [0.56, 202], [0.74, 202],
-    // left-edge guides that nudge edge balls back toward the holes
-    [0.06, 260], [0.06, 340],
   ];
   scatterPositions.forEach(([xR, y]) => {
     nails.push(makeNail(xR * CANVAS_W, y));

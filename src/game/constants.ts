@@ -25,20 +25,20 @@ export const LAUNCHER_Y = CANVAS_H - 50; // approx launch point within canvas
 export const MAX_PULL = 80; // pixels of swipe = full power
 // Launch speed is in px/step (Matter velocity units). Tuned (with engine
 // substepping) so even the weakest launch reaches the top deflector curve.
-export const MIN_LAUNCH_SPEED = 34;
-export const MAX_LAUNCH_SPEED = 44;
+export const MIN_LAUNCH_SPEED = 36;
+export const MAX_LAUNCH_SPEED = 48;
 export const LAUNCH_START_X = 368; // inside the right launch lane
 export const LAUNCH_START_Y = CANVAS_H - 80;
 
-// Top-right corner deflector: a short circular arc positioned at the very top-right
-// of the canvas. The ball rises up the launch lane, hits this arc, and is deflected
-// left-downward into the playfield from the upper-right.
-export const DEFLECTOR_CENTER_X = 390;
-export const DEFLECTOR_CENTER_Y = 30;
-export const DEFLECTOR_RADIUS = 50;
-export const DEFLECTOR_SEGMENTS = 8;
-export const DEFLECTOR_ANGLE_START = 90 * Math.PI / 180;  // bottom of arc (390, 80)
-export const DEFLECTOR_ANGLE_END = 146 * Math.PI / 180;   // left end of arc (~349, 58)
+// Top-right corner deflector: convex arc – center is outside the canvas (upper-right),
+// so the arc surface bulges toward the playfield. Ball rises up the lane, hits the
+// convex surface, and is deflected left into the playfield from the upper-right corner.
+export const DEFLECTOR_CENTER_X = 440;
+export const DEFLECTOR_CENTER_Y = -20;
+export const DEFLECTOR_RADIUS = 95;
+export const DEFLECTOR_SEGMENTS = 10;
+export const DEFLECTOR_ANGLE_START = 120 * Math.PI / 180; // right end  ≈ (392, 62)
+export const DEFLECTOR_ANGLE_END   = 160 * Math.PI / 180; // left-top end ≈ (351, 13)
 export const DEFLECTOR_RESTITUTION = 0.45;
 
 // Launch-lane separator wall (right side). Its top sits BELOW the deflection
