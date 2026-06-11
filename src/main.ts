@@ -2,6 +2,7 @@ import { renderTopScreen } from './screens/topScreen';
 import { renderGameScreen } from './screens/gameScreen';
 import { renderResultScreen } from './screens/resultScreen';
 import type { Board } from './game/board';
+import './styles/main.css';
 
 const app = document.getElementById('app')!;
 
@@ -14,9 +15,7 @@ document.body.appendChild(orientWarn);
 let currentEl: HTMLElement | null = null;
 
 function show(el: HTMLElement): void {
-  if (currentEl) {
-    currentEl.remove();
-  }
+  if (currentEl) currentEl.remove();
   app.appendChild(el);
   currentEl = el;
 }
@@ -30,12 +29,11 @@ function goGame(): void {
 }
 
 function goResult(score: number, board: Board): void {
-  show(renderResultScreen(score, board, goGame));
+  show(renderResultScreen(score, board, goGame, goTop));
 }
 
-// Start
 goTop();
 
-// Prevent default touch behaviors globally
+// Prevent default touch behaviors (scroll / pinch zoom) globally
 document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
 document.addEventListener('contextmenu', (e) => e.preventDefault());
