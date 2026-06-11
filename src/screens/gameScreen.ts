@@ -1,4 +1,4 @@
-import { TOTAL_BALLS, MAX_PULL } from '../game/constants';
+import { TOTAL_BALLS, MAX_PULL, CHUTE_INNER_X } from '../game/constants';
 import { createBoard, fillCell, countLines, Board } from '../game/board';
 import {
   createPhysicsWorld, launchBall, stepWorld, destroyWorld,
@@ -44,7 +44,6 @@ export function renderGameScreen(onEnd: (score: number, board: Board) => void): 
   let pulling = false;
   let pullStartY = 0;
   let pullCurrent = 0;
-  let canLaunch = true; // one ball at a time
   let ended = false;
   let nailSfxAt = 0;
   let canvasCtx: CanvasRenderingContext2D | null = null;
@@ -82,6 +81,20 @@ export function renderGameScreen(onEnd: (score: number, board: Board) => void): 
     onEnd(currentLines, board);
   }
 
+  // The launch chute must be empty before the next ball can be loaded
+  // (a rising or rolled-back ball still occupies it). Balls already in the
+  // playfield don't block the launcher.
+  function chuteClear(): boolean {
+    if (!physicsWorld) return false;
+    return physicsWorld.balls.every(
+      b => b.state !== 'flying' || b.body.position.x < CHUTE_INNER_X
+    );
+  }
+
+  function canLaunch(): boolean {
+    return !ended && ballsRemaining > 0 && chuteClear();
+  }
+
   // ---- Physics callbacks ----
   function isHoleFilled(row: number, col: number): boolean {
     return board[row][col];
@@ -94,7 +107,7 @@ export function renderGameScreen(onEnd: (score: number, board: Board) => void): 
     sfx.hole();
     if (currentLines > prevLines) sfx.bingo();
     updateUI();
-    scheduleNextLaunch();
+    maybeEndGame();
   }
 
   function onBallRemoved(_ball: PhysicsBall, refunded: boolean): void {
@@ -106,7 +119,7 @@ export function renderGameScreen(onEnd: (score: number, board: Board) => void): 
     } else {
       sfx.out();
     }
-    scheduleNextLaunch();
+    maybeEndGame();
   }
 
   function onNailHit(_speed: number): void {
@@ -117,9 +130,9 @@ export function renderGameScreen(onEnd: (score: number, board: Board) => void): 
     }
   }
 
-  function scheduleNextLaunch(): void {
-    canLaunch = true;
-    if (ballsRemaining <= 0) {
+  function maybeEndGame(): void {
+    const anyFlying = physicsWorld?.balls.some(b => b.state === 'flying') ?? false;
+    if (ballsRemaining <= 0 && !anyFlying) {
       setTimeout(endGame, 900);
     }
   }
@@ -134,8 +147,7 @@ export function renderGameScreen(onEnd: (score: number, board: Board) => void): 
 
     if (physicsWorld && canvasCtx) {
       stepWorld(physicsWorld, delta);
-      const ballReady = canLaunch && ballsRemaining > 0;
-      drawFrame(canvasCtx, physicsWorld, board, ballReady);
+      drawFrame(canvasCtx, physicsWorld, board, canLaunch());
     }
   }
 
@@ -174,14 +186,13 @@ export function renderGameScreen(onEnd: (score: number, board: Board) => void): 
       knob.classList.remove('pulling');
       setKnob(0);
 
-      if (pullCurrent < 8 || !canLaunch || ballsRemaining <= 0 || ended) {
+      if (pullCurrent < 8 || !canLaunch()) {
         pullCurrent = 0;
         return;
       }
 
       const power = pullCurrent / MAX_PULL;
       pullCurrent = 0;
-      canLaunch = false;
       ballsRemaining--;
       updateUI();
       sfx.launch();

@@ -85,16 +85,19 @@ function buildNails(): Matter.Body[] {
 
 function buildArchRail(): Matter.Body[] {
   // Outer guide rail along the top arch. The ball rides it from the chute
-  // mouth over the apex and into the playfield.
+  // mouth over the apex and into the playfield. The rail extends past both
+  // side walls so its end caps are buried behind them: a fast ball rising up
+  // the chute used to slam head-on into the exposed end of the first segment
+  // and bounce back erratically.
   const segments: Matter.Body[] = [];
-  const thetaRight = Math.acos((CANVAS_W - ARCH_CX) / ARCH_R);  // ~30deg
-  const thetaLeft = Math.PI - thetaRight;                        // ~150deg
-  const N = 26;
+  const thetaStart = Math.PI * 0.08; // behind the right wall
+  const thetaEnd = Math.PI * 0.92;   // behind the left wall
+  const N = 34;
   const thickness = 14;
   const rMid = ARCH_R + thickness / 2;
   for (let i = 0; i < N; i++) {
-    const t0 = thetaRight + ((thetaLeft - thetaRight) * i) / N;
-    const t1 = thetaRight + ((thetaLeft - thetaRight) * (i + 1)) / N;
+    const t0 = thetaStart + ((thetaEnd - thetaStart) * i) / N;
+    const t1 = thetaStart + ((thetaEnd - thetaStart) * (i + 1)) / N;
     const x0 = ARCH_CX + Math.cos(t0) * ARCH_R;
     const y0 = ARCH_CY - Math.sin(t0) * ARCH_R;
     const x1 = ARCH_CX + Math.cos(t1) * ARCH_R;
@@ -102,12 +105,13 @@ function buildArchRail(): Matter.Body[] {
     const mt = (t0 + t1) / 2;
     const cx = ARCH_CX + Math.cos(mt) * rMid;
     const cy = ARCH_CY - Math.sin(mt) * rMid;
-    const len = Math.hypot(x1 - x0, y1 - y0) + 3;
+    const len = Math.hypot(x1 - x0, y1 - y0) + 4;
     const angle = Math.atan2(y1 - y0, x1 - x0);
     segments.push(
       Bodies.rectangle(cx, cy, len, thickness, {
         isStatic: true,
         angle,
+        chamfer: { radius: 3 },
         restitution: 0.05,
         friction: 0,
         label: 'rail',
