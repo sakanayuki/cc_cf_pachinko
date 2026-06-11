@@ -1,193 +1,178 @@
 import Matter from 'matter-js';
 import {
-  CANVAS_W, CANVAS_H, BALL_RADIUS, NAIL_RADIUS, HOLE_RADIUS,
-  BALL_RESTITUTION, NAIL_RESTITUTION, BALL_FRICTION, BALL_FRICTION_AIR,
-  GRAVITY, GRID_SIZE,
-  MIN_LAUNCH_SPEED, MAX_LAUNCH_SPEED, LAUNCH_START_X, LAUNCH_START_Y,
-  DEFLECTOR_CENTER_X, DEFLECTOR_CENTER_Y, DEFLECTOR_RADIUS, DEFLECTOR_SEGMENTS,
-  DEFLECTOR_ANGLE_START, DEFLECTOR_ANGLE_END, DEFLECTOR_RESTITUTION,
-  LANE_WALL_X, LANE_WALL_THICK, LANE_WALL_Y_TOP, LANE_WALL_Y_BOT,
+  CANVAS_W, CANVAS_H, BALL_RADIUS, NAIL_RADIUS,
+  BALL_RESTITUTION, NAIL_RESTITUTION, WALL_RESTITUTION,
+  BALL_FRICTION, BALL_FRICTION_AIR, GRAVITY,
+  FRAME_W, CHUTE_INNER_X, CHUTE_WALL_TOP,
+  ARCH_CX, ARCH_CY, ARCH_R,
+  HOLE_SPACING, HOLE_CAPTURE_DIST, HOLE_ATTRACT_DIST, HOLE_ATTRACT_FORCE,
+  MIN_LAUNCH_SPEED, MAX_LAUNCH_SPEED, LAUNCH_JITTER,
+  STALL_SPEED, STALL_NUDGE_MS, STALL_REMOVE_MS,
+  GRID_SIZE,
 } from './constants';
 import { holePosition } from './board';
 
-const { Engine, World, Bodies, Body, Events } = Matter;
+const { Engine, World, Bodies, Body, Events, Common } = Matter;
 
 export interface PhysicsBall {
   body: Matter.Body;
   state: 'flying' | 'settled' | 'removed';
   settledRow?: number;
   settledCol?: number;
-  lowSpeedSteps?: number; // for anti-stall nudge
-}
-
-export interface HoleSensor {
-  body: Matter.Body;
-  row: number;
-  col: number;
-  filled: boolean;
+  stallMs: number;
+  lifeMs: number;
 }
 
 export interface PhysicsWorld {
   engine: Matter.Engine;
   balls: PhysicsBall[];
-  holeSensors: HoleSensor[];
   nailBodies: Matter.Body[];
+  accumulator: number;
+  isHoleFilled: (row: number, col: number) => boolean;
   onBallSettled: (ball: PhysicsBall, row: number, col: number) => void;
-  onBallRemoved: (ball: PhysicsBall) => void;
+  /** refunded = the ball rolled back down the launch chute and is returned to the player */
+  onBallRemoved: (ball: PhysicsBall, refunded: boolean) => void;
+  onNailHit: (speed: number) => void;
 }
 
-function makeNail(x: number, y: number): Matter.Body {
-  return Bodies.circle(x, y, NAIL_RADIUS, {
-    isStatic: true,
-    restitution: NAIL_RESTITUTION,
-    friction: 0,
-    label: 'nail',
-    render: { fillStyle: '#7A4A1E' },
-  });
+const FIXED_DT = 1000 / 120;
+
+export function nailPositions(): { x: number; y: number }[] {
+  const pts: { x: number; y: number }[] = [];
+  const colX = (c: number) => holePosition(0, c).x;
+  const rowY = (r: number) => holePosition(r, 0).y;
+  const midX = [
+    (colX(0) + colX(1)) / 2,
+    (colX(1) + colX(2)) / 2,
+    (colX(2) + colX(3)) / 2,
+  ];
+  const outerL = colX(0) - HOLE_SPACING / 2;
+  const outerR = colX(3) + HOLE_SPACING / 2;
+
+  // Entry scatter under the arch (two staggered rows)
+  for (const x of [55, 120, 185, 250, 315]) pts.push({ x, y: 152 });
+  for (const x of [88, 153, 218, 283]) pts.push({ x, y: 192 });
+
+  // Funnel lines above each hole row + one below the last row.
+  // Nails sit exactly between hole columns so balls are funnelled into holes.
+  for (let r = 0; r <= GRID_SIZE; r++) {
+    const y = rowY(0) - HOLE_SPACING / 2 + r * HOLE_SPACING;
+    for (const x of [outerL, ...midX, outerR]) pts.push({ x, y });
+  }
+
+  // Side deflectors keep balls from hugging the walls
+  for (const y of [rowY(0) + HOLE_SPACING / 2, rowY(2) + HOLE_SPACING / 2]) {
+    pts.push({ x: 16, y });
+    pts.push({ x: CHUTE_INNER_X - 16, y });
+  }
+
+  // Bottom bumpers above the out gutter
+  for (const x of midX) pts.push({ x, y: rowY(3) + HOLE_SPACING + 36 });
+
+  return pts;
 }
 
 function buildNails(): Matter.Body[] {
-  const nails: Matter.Body[] = [];
-
-  // Holes are large and staggered, so the field is intentionally sparse: a
-  // couple of guide rows feed balls into the staggered cascade. A denser field
-  // here actually blocks the cascade and stops balls reaching the lower rows.
-  const scatterPositions: [number, number][] = [
-    // entry row just above the top holes – spreads incoming balls across columns
-    [0.12, 180], [0.30, 180], [0.48, 180], [0.66, 180], [0.84, 180],
-    [0.20, 202], [0.38, 202], [0.56, 202], [0.74, 202],
-  ];
-  scatterPositions.forEach(([xR, y]) => {
-    nails.push(makeNail(xR * CANVAS_W, y));
-  });
-
-  // Drop any nail that overlaps a hole, or that sits inside the launch lane
-  // (where it would block the rising ball).
-  const holeCenters: { x: number; y: number }[] = [];
-  for (let r = 0; r < GRID_SIZE; r++) {
-    for (let c = 0; c < GRID_SIZE; c++) holeCenters.push(holePosition(r, c));
-  }
-  const margin = HOLE_RADIUS + NAIL_RADIUS + 2;
-  return nails.filter(n =>
-    n.position.x > 18 &&
-    n.position.x < LANE_WALL_X - NAIL_RADIUS - 8 &&
-    holeCenters.every(h => Math.hypot(n.position.x - h.x, n.position.y - h.y) >= margin)
+  return nailPositions().map(({ x, y }) =>
+    Bodies.circle(x, y, NAIL_RADIUS, {
+      isStatic: true,
+      restitution: NAIL_RESTITUTION,
+      friction: 0,
+      label: 'nail',
+    })
   );
 }
 
-function buildWalls(): Matter.Body[] {
-  const thick = 20;
-  const walls: Matter.Body[] = [
-    // left wall
-    Bodies.rectangle(-thick / 2, CANVAS_H / 2, thick, CANVAS_H, {
-      isStatic: true, label: 'wall', render: { fillStyle: '#7A4A1E' },
-    }),
-    // right wall
-    Bodies.rectangle(CANVAS_W + thick / 2, CANVAS_H / 2, thick, CANVAS_H, {
-      isStatic: true, label: 'wall', render: { fillStyle: '#7A4A1E' },
-    }),
-    // launch-lane separator wall: keeps the launched ball in the right lane on
-    // the way up. Its top is below the deflection point so the ball, once
-    // turned left by the deflector, clears it into the playfield.
-    Bodies.rectangle(
-      LANE_WALL_X, (LANE_WALL_Y_TOP + LANE_WALL_Y_BOT) / 2,
-      LANE_WALL_THICK, LANE_WALL_Y_BOT - LANE_WALL_Y_TOP,
-      { isStatic: true, label: 'wall', render: { fillStyle: '#7A4A1E' } }
-    ),
-  ];
-
-  // Top-right deflector curve: a circular arc approximated by thin static
-  // segments. The ball rises into its concave underside and is smoothly turned
-  // left into the playfield.
-  const step = (DEFLECTOR_ANGLE_END - DEFLECTOR_ANGLE_START) / DEFLECTOR_SEGMENTS;
-  const segLen = 2 * DEFLECTOR_RADIUS * Math.sin(Math.abs(step) / 2) + 8; // overlap neighbours
-  for (let i = 0; i < DEFLECTOR_SEGMENTS; i++) {
-    const t = DEFLECTOR_ANGLE_START + step * (i + 0.5);
-    const cx = DEFLECTOR_CENTER_X + DEFLECTOR_RADIUS * Math.cos(t);
-    const cy = DEFLECTOR_CENTER_Y + DEFLECTOR_RADIUS * Math.sin(t);
-    walls.push(
-      Bodies.rectangle(cx, cy, segLen, 10, {
+function buildArchRail(): Matter.Body[] {
+  // Outer guide rail along the top arch. The ball rides it from the chute
+  // mouth over the apex and into the playfield.
+  const segments: Matter.Body[] = [];
+  const thetaRight = Math.acos((CANVAS_W - ARCH_CX) / ARCH_R);  // ~30deg
+  const thetaLeft = Math.PI - thetaRight;                        // ~150deg
+  const N = 26;
+  const thickness = 14;
+  const rMid = ARCH_R + thickness / 2;
+  for (let i = 0; i < N; i++) {
+    const t0 = thetaRight + ((thetaLeft - thetaRight) * i) / N;
+    const t1 = thetaRight + ((thetaLeft - thetaRight) * (i + 1)) / N;
+    const x0 = ARCH_CX + Math.cos(t0) * ARCH_R;
+    const y0 = ARCH_CY - Math.sin(t0) * ARCH_R;
+    const x1 = ARCH_CX + Math.cos(t1) * ARCH_R;
+    const y1 = ARCH_CY - Math.sin(t1) * ARCH_R;
+    const mt = (t0 + t1) / 2;
+    const cx = ARCH_CX + Math.cos(mt) * rMid;
+    const cy = ARCH_CY - Math.sin(mt) * rMid;
+    const len = Math.hypot(x1 - x0, y1 - y0) + 3;
+    const angle = Math.atan2(y1 - y0, x1 - x0);
+    segments.push(
+      Bodies.rectangle(cx, cy, len, thickness, {
         isStatic: true,
-        angle: t + Math.PI / 2, // tangent to the arc
+        angle,
+        restitution: 0.05,
         friction: 0,
-        restitution: DEFLECTOR_RESTITUTION,
-        label: 'deflector',
-        render: { fillStyle: '#A9743B' },
+        label: 'rail',
       })
     );
   }
+  return segments;
+}
 
-  return walls;
+function buildWalls(): Matter.Body[] {
+  const thick = 40;
+  const opt = (label: string) => ({
+    isStatic: true,
+    restitution: WALL_RESTITUTION,
+    friction: 0,
+    label,
+  });
+  return [
+    // left / right outer walls (inset to the visible frame's inner edge)
+    Bodies.rectangle(FRAME_W - thick / 2, CANVAS_H / 2, thick, CANVAS_H * 2, opt('wall')),
+    Bodies.rectangle(CANVAS_W - FRAME_W + thick / 2, CANVAS_H / 2, thick, CANVAS_H * 2, opt('wall')),
+    // safety ceiling far above the arch
+    Bodies.rectangle(CANVAS_W / 2, -thick, CANVAS_W * 2, thick, opt('wall')),
+    // launch chute inner wall (open at the top so the ball exits onto the arch)
+    Bodies.rectangle(
+      CHUTE_INNER_X - 3,
+      (CHUTE_WALL_TOP + CANVAS_H) / 2,
+      6,
+      CANVAS_H - CHUTE_WALL_TOP,
+      opt('chute')
+    ),
+  ];
 }
 
 export function createPhysicsWorld(
+  isHoleFilled: PhysicsWorld['isHoleFilled'],
   onBallSettled: PhysicsWorld['onBallSettled'],
   onBallRemoved: PhysicsWorld['onBallRemoved'],
+  onNailHit: PhysicsWorld['onNailHit'],
 ): PhysicsWorld {
   const engine = Engine.create();
   engine.gravity.y = GRAVITY;
-  // Higher iterations stabilise the segmented deflector and nail bounces.
-  engine.positionIterations = 12;
-  engine.velocityIterations = 10;
 
   const nailBodies = buildNails();
-  const walls = buildWalls();
-
-  const holeSensors: HoleSensor[] = [];
-  for (let r = 0; r < 4; r++) {
-    for (let c = 0; c < 4; c++) {
-      const { x, y } = holePosition(r, c);
-      const body = Bodies.circle(x, y, HOLE_RADIUS, {
-        isStatic: true,
-        isSensor: true,
-        label: `hole_${r}_${c}`,
-        render: { fillStyle: 'transparent' },
-      });
-      holeSensors.push({ body, row: r, col: c, filled: false });
-    }
-  }
-
-  World.add(engine.world, [
-    ...walls,
-    ...nailBodies,
-    ...holeSensors.map(h => h.body),
-  ]);
+  World.add(engine.world, [...buildWalls(), ...buildArchRail(), ...nailBodies]);
 
   const world: PhysicsWorld = {
     engine,
     balls: [],
-    holeSensors,
     nailBodies,
+    accumulator: 0,
+    isHoleFilled,
     onBallSettled,
     onBallRemoved,
+    onNailHit,
   };
 
   Events.on(engine, 'collisionStart', (event) => {
     for (const pair of event.pairs) {
       const { bodyA, bodyB } = pair;
-      for (const [ballBody, other] of [[bodyA, bodyB], [bodyB, bodyA]] as [Matter.Body, Matter.Body][]) {
-        if (ballBody.label !== 'ball') continue;
-        const ball = world.balls.find(b => b.body === ballBody);
-        if (!ball || ball.state !== 'flying') continue;
-
-        if (other.label.startsWith('hole_')) {
-          const parts = other.label.split('_');
-          const row = parseInt(parts[1], 10);
-          const col = parseInt(parts[2], 10);
-          const sensor = world.holeSensors.find(h => h.row === row && h.col === col);
-          // Already-filled hole: do nothing. The ball that previously settled
-          // here remains as a static "bumper", so this ball bounces off it and
-          // keeps flying toward another hole (no freeze).
-          if (!sensor || sensor.filled) continue;
-
-          sensor.filled = true;
-          ball.state = 'settled';
-          ball.settledRow = row;
-          ball.settledCol = col;
-          Body.setStatic(ballBody, true);
-          Body.setPosition(ballBody, holePosition(row, col));
-          onBallSettled(ball, row, col);
-        }
+      const nail = bodyA.label === 'nail' ? bodyA : bodyB.label === 'nail' ? bodyB : null;
+      const ballBody = bodyA.label === 'ball' ? bodyA : bodyB.label === 'ball' ? bodyB : null;
+      if (nail && ballBody) {
+        const speed = Math.hypot(ballBody.velocity.x, ballBody.velocity.y);
+        if (speed > 0.8) world.onNailHit(speed);
       }
     }
   });
@@ -195,59 +180,119 @@ export function createPhysicsWorld(
   return world;
 }
 
+export const LAUNCH_X = (CHUTE_INNER_X + CANVAS_W - FRAME_W) / 2;
+export const LAUNCH_Y = CANVAS_H - 40;
+
 export function launchBall(world: PhysicsWorld, power: number): PhysicsBall {
-  const body = Bodies.circle(LAUNCH_START_X, LAUNCH_START_Y, BALL_RADIUS, {
+  const startX = LAUNCH_X;
+  const startY = LAUNCH_Y;
+
+  const body = Bodies.circle(startX, startY, BALL_RADIUS, {
     restitution: BALL_RESTITUTION,
     friction: BALL_FRICTION,
     frictionAir: BALL_FRICTION_AIR,
+    density: 0.002,
     label: 'ball',
-    render: { fillStyle: '#FFFFFF' },
   });
 
   World.add(world.engine.world, body);
 
-  // Launch straight up the lane; the top-right deflector does the left turn.
-  const speed = MIN_LAUNCH_SPEED + power * (MAX_LAUNCH_SPEED - MIN_LAUNCH_SPEED);
+  const speed =
+    MIN_LAUNCH_SPEED +
+    power * (MAX_LAUNCH_SPEED - MIN_LAUNCH_SPEED) +
+    Common.random(-LAUNCH_JITTER, LAUNCH_JITTER);
   Body.setVelocity(body, { x: 0, y: -speed });
 
-  const ball: PhysicsBall = { body, state: 'flying' };
+  const ball: PhysicsBall = { body, state: 'flying', stallMs: 0, lifeMs: 0 };
   world.balls.push(ball);
   return ball;
 }
 
-export function stepWorld(world: PhysicsWorld, delta: number): void {
-  // Substep to halve per-step travel and avoid tunneling through thin segments.
-  const half = delta / 2;
-  Engine.update(world.engine, half);
-  Engine.update(world.engine, half);
+function settleBall(world: PhysicsWorld, ball: PhysicsBall, row: number, col: number): void {
+  ball.state = 'settled';
+  ball.settledRow = row;
+  ball.settledCol = col;
+  Body.setVelocity(ball.body, { x: 0, y: 0 });
+  Body.setStatic(ball.body, true);
+  Body.setPosition(ball.body, holePosition(row, col));
+  world.onBallSettled(ball, row, col);
+}
 
-  for (const ball of world.balls) {
-    if (ball.state !== 'flying') continue;
+function removeBall(world: PhysicsWorld, ball: PhysicsBall, refunded: boolean): void {
+  ball.state = 'removed';
+  World.remove(world.engine.world, ball.body);
+  world.onBallRemoved(ball, refunded);
+}
 
-    // Remove balls that have left the canvas bottom.
-    if (ball.body.position.y > CANVAS_H + BALL_RADIUS * 2) {
-      ball.state = 'removed';
-      World.remove(world.engine.world, ball.body);
-      world.onBallRemoved(ball);
-      continue;
-    }
+function updateFlyingBall(world: PhysicsWorld, ball: PhysicsBall, dt: number): void {
+  const body = ball.body;
+  const { x, y } = body.position;
+  ball.lifeMs += dt;
 
-    // Anti-stall nudge: if a ball is nearly stationary in the playfield for too
-    // long (resting on a nail), give it a small impulse to dislodge it.
-    const speed = Math.hypot(ball.body.velocity.x, ball.body.velocity.y);
-    if (speed < 0.6 && ball.body.position.y > 150) {
-      ball.lowSpeedSteps = (ball.lowSpeedSteps ?? 0) + 1;
-      if (ball.lowSpeedSteps > 30) {
-        Body.setVelocity(ball.body, { x: (Math.random() - 0.5) * 5, y: -2.5 });
-        ball.lowSpeedSteps = 0;
+  // Out the bottom: lost ball, unless it rolled back down the launch chute,
+  // in which case it is returned to the player.
+  if (y > CANVAS_H + BALL_RADIUS * 2) {
+    removeBall(world, ball, x > CHUTE_INNER_X);
+    return;
+  }
+
+  // Hole capture + attraction (only inside the playfield)
+  if (x < CHUTE_INNER_X) {
+    for (let r = 0; r < GRID_SIZE; r++) {
+      for (let c = 0; c < GRID_SIZE; c++) {
+        if (world.isHoleFilled(r, c)) continue;
+        const hp = holePosition(r, c);
+        const dx = hp.x - x;
+        const dy = hp.y - y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < HOLE_CAPTURE_DIST * HOLE_CAPTURE_DIST) {
+          settleBall(world, ball, r, c);
+          return;
+        }
+        if (d2 < HOLE_ATTRACT_DIST * HOLE_ATTRACT_DIST) {
+          const d = Math.sqrt(d2) || 1;
+          Body.applyForce(body, body.position, {
+            x: (dx / d) * HOLE_ATTRACT_FORCE,
+            y: (dy / d) * HOLE_ATTRACT_FORCE,
+          });
+        }
       }
-    } else {
-      ball.lowSpeedSteps = 0;
+    }
+  }
+
+  // Anti-stall: balls resting on nails get nudged, hopeless ones are recycled
+  const speed = Math.hypot(body.velocity.x, body.velocity.y);
+  if (speed < STALL_SPEED && ball.lifeMs > 500) {
+    ball.stallMs += dt;
+    if (ball.stallMs > STALL_REMOVE_MS) {
+      removeBall(world, ball, false);
+      return;
+    }
+    if (ball.stallMs % STALL_NUDGE_MS < dt) {
+      Body.applyForce(body, body.position, {
+        x: (Common.random(-1, 1)) * 0.0035,
+        y: -0.002,
+      });
+    }
+  } else if (speed > STALL_SPEED * 2) {
+    ball.stallMs = 0;
+  }
+}
+
+export function stepWorld(world: PhysicsWorld, delta: number): void {
+  // Fixed-timestep accumulator keeps collisions stable at high launch speeds
+  world.accumulator = Math.min(world.accumulator + delta, 100);
+  while (world.accumulator >= FIXED_DT) {
+    world.accumulator -= FIXED_DT;
+    Engine.update(world.engine, FIXED_DT);
+    for (const ball of world.balls) {
+      if (ball.state === 'flying') updateFlyingBall(world, ball, FIXED_DT);
     }
   }
 }
 
 export function destroyWorld(world: PhysicsWorld): void {
+  Events.off(world.engine, 'collisionStart');
   World.clear(world.engine.world, false);
   Engine.clear(world.engine);
 }
