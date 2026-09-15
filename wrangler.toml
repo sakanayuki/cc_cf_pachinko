@@ -1,0 +1,12 @@
+# Cloudflare Pages 設定
+#
+# このファイルが無いと Cloudflare のビルドが「フレームワーク自動検出」に入り、
+# Vite を見つけて @cloudflare/vite-plugin（Vite 6+ 必須）での自動構成を試みて
+# 失敗する（The version of Vite used in the project cannot be automatically configured）。
+# pages_build_output_dir を明示することで「ビルド済みの静的ファイルを配るだけの
+# Pages プロジェクト」だと確定させ、自動構成を回避する。
+#
+# name は Cloudflare 上の Pages プロジェクト名と一致させること。
+name = "cc-cf-pachinko"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-09-15"
